@@ -1,0 +1,41 @@
+name: Rho Bounce Bot
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'  # Every 5 minutes
+  workflow_dispatch:  # Manual trigger
+
+jobs:
+  trade:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+    
+    - name: Install dependencies
+      run: |
+        pip install iqoptionapi numpy requests
+    
+    - name: Run bot
+      env:
+        IQ_EMAIL: ${{ secrets.IQ_EMAIL }}
+        IQ_PASSWORD: ${{ secrets.IQ_PASSWORD }}
+      run: |
+        cd experiments
+        python3 -u rho_real.py
+      timeout-minutes: 3
+    
+    - name: Save results
+      if: always()
+      run: |
+        git config user.email "bot@github.com"
+        git config user.name "Bot"
+        git add results/ || true
+        git diff --staged --quiet || git commit -m "Update trades $(date -u '+%Y-%m-%d %H:%M')"
+        git push || true
