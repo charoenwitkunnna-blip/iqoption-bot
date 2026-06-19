@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
-"""RHO BOUNCE — Optimized for low API calls. Caches everything."""
-import sys, os, time, json, importlib
+"""RHO BOUNCE — Optimized for low API calls. SQLite trade storage."""
+import sys, os, time, json, importlib, sqlite3, random
 
 AMOUNT = 30
+base_amount = 30
+consecutive_losses = 0
 STOP_LOSS = -90
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 RESULTS = os.path.join(BASE_DIR, "results")
@@ -10,44 +12,111 @@ os.makedirs(RESULTS, exist_ok=True)
 
 sys.path.insert(0, BASE_DIR)
 sys.path.insert(0, os.path.join(BASE_DIR, '..'))
-import os
-IQ_OPTION_EMAIL = os.environ.get("IQ_EMAIL", "agolfhitler3000@gmail.com")
-IQ_OPTION_PASSWORD = os.environ.get("IQ_PASSWORD", "***")
+# Load .env if present
+_env = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '.env')
+if os.path.exists(_env):
+    for _line in open(_env):
+        _line = _line.strip()
+        if _line and not _line.startswith('#') and '=' in _line:
+            _k, _v = _line.split('=', 1)
+            os.environ.setdefault(_k.strip(), _v.strip())
+
+IQ_OPTION_EMAIL = os.environ.get("IQ_EMAIL", "") or os.environ.get("IQ_OPTION_EMAIL", "")
+
 from iqoptionapi.stable_api import IQ_Option
 
 strat = importlib.import_module("new_algos.rho_bounce.strategy")
 
+# --- Debug log ---
 log_file = os.path.join(RESULTS, "rho_real.log")
-trades_file = os.path.join(RESULTS, "rho_real_trades.json")
-
 def log(msg):
     with open(log_file, "a") as f:
         f.write(f"{time.strftime('%H:%M:%S')} {msg}\n")
 
-def load_trades():
-    if os.path.exists(trades_file):
-        try: return json.load(open(trades_file))
+# --- SQLite DB ---
+db_path = os.path.join(RESULTS, "trades.db")
+def get_db():
+    db = sqlite3.connect(db_path)
+    db.execute("PRAGMA journal_mode=WAL")
+    return db
+
+def init_db():
+    db = get_db()
+    db.execute("""
+        CREATE TABLE IF NOT EXISTS trades (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            time TEXT NOT NULL,
+            asset TEXT NOT NULL,
+            direction TEXT NOT NULL,
+            amount REAL NOT NULL,
+            confidence INTEGER,
+            profit REAL NOT NULL,
+            win INTEGER NOT NULL,
+            payout REAL,
+            balance REAL,
+            utc_hour INTEGER
+        )
+    """)
+    db.execute("CREATE INDEX IF NOT EXISTS idx_time ON trades(time)")
+    db.execute("CREATE INDEX IF NOT EXISTS idx_asset ON trades(asset)")
+    db.execute("CREATE INDEX IF NOT EXISTS idx_win ON trades(win)")
+    db.commit()
+    db.close()
+
+def db_insert_trade(t):
+    db = get_db()
+    db.execute(
+        "INSERT INTO trades (time, asset, direction, amount, confidence, profit, win, payout, balance, utc_hour) VALUES (?,?,?,?,?,?,?,?,?,?)",
+        (t["time"], t["asset"], t["direction"], t["amount"], t.get("confidence"),
+         t["profit"], int(t["win"]), t.get("payout"), t.get("balance"), t.get("utc_hour"))
+    )
+    db.commit()
+    db.close()
+
+def db_get_stats():
+    db = get_db()
+    row = db.execute("SELECT COUNT(*), SUM(CASE WHEN win=1 THEN 1 ELSE 0 END), SUM(profit) FROM trades").fetchone()
+    db.close()
+    total, wins, pnl = row
+    wins = wins or 0
+    pnl = pnl or 0
+    return int(total), int(wins), pnl
+
+def db_get_win_counts():
+    db = get_db()
+    rows = db.execute("SELECT asset, SUM(CASE WHEN win=1 THEN 1 ELSE 0 END) as wins FROM trades GROUP BY asset").fetchall()
+    db.close()
+    return {r[0]: r[1] for r in rows}
+
+init_db()
+
+# --- Martingale state ---
+state_file = os.path.join(RESULTS, "rho_state.json")
+def load_state():
+    if os.path.exists(state_file):
+        try:
+            s = json.load(open(state_file))
+            return s.get("consecutive_losses", 0)
         except: pass
-    return []
+    return 0
 
-def save_trades(trades):
-    json.dump(trades, open(trades_file, "w"), indent=2)
+def save_state(cl):
+    json.dump({"consecutive_losses": cl}, open(state_file, "w"))
 
-trades = load_trades()
+consecutive_losses = load_state()
+AMOUNT = min(base_amount * (1.5 ** consecutive_losses), 200)
 
-# Cache system — reduces API calls dramatically
+# --- Cache ---
 cache = {
-    'open_assets': None,      # refreshed every 30 min
+    'open_assets': None,
     'open_assets_time': 0,
-    'paying': None,            # refreshed every 10 min
+    'paying': None,
     'paying_time': 0,
 }
-
-OPEN_TTL = 30 * 60   # 30 min
-PAYING_TTL = 10 * 60  # 10 min
+OPEN_TTL = 30 * 60
+PAYING_TTL = 10 * 60
 
 def refresh_open_assets(api):
-    """Cache open assets — 1 API call every 30 min."""
     now = time.time()
     if cache['open_assets'] and (now - cache['open_assets_time']) < OPEN_TTL:
         return cache['open_assets']
@@ -61,12 +130,10 @@ def refresh_open_assets(api):
     return cache['open_assets'] or {}
 
 def refresh_paying(api, open_assets):
-    """Cache paying assets — 1 API call per asset every 10 min."""
     now = time.time()
     if cache['paying'] and (now - cache['paying_time']) < PAYING_TTL:
         return cache['paying']
     paying = {}
-    # Only check top 30 by alphabetical (reduce calls)
     assets = sorted(open_assets.keys())[:30]
     for asset in assets:
         try:
@@ -79,6 +146,7 @@ def refresh_paying(api, open_assets):
     log(f"Cache: {len(paying)} paying assets")
     return paying
 
+# --- Main loop ---
 MAX_CYCLES = int(os.environ.get("MAX_CYCLES", "0"))
 cycle_count = 0
 while True:
@@ -88,8 +156,12 @@ while True:
         break
     api = None
     try:
-        api = IQ_Option(IQ_OPTION_EMAIL, IQ_OPTION_PASSWORD)
-        api.connect()
+        api = IQ_Option(IQ_OPTION_EMAIL, os.environ.get("IQ_OPTION_PASSWORD", ""))
+        ok, msg = api.connect()
+        if not ok:
+            log(f"CONNECT FAIL: {msg}")
+            time.sleep(60)
+            continue
         api.change_balance("REAL")
         time.sleep(2)
 
@@ -101,12 +173,11 @@ while True:
             time.sleep(60)
             continue
 
-        total_pnl = sum(t['profit'] for t in trades)
-        if total_pnl <= STOP_LOSS:
-            log(f"STOP LOSS: {total_pnl}")
+        total, wins, pnl = db_get_stats()
+        if pnl <= STOP_LOSS:
+            log(f"STOP LOSS: {pnl}")
             break
 
-        # Get cached data — most cycles make 0 API calls for these
         open_assets = refresh_open_assets(api)
         paying = refresh_paying(api, open_assets)
 
@@ -117,7 +188,14 @@ while True:
             time.sleep(30)
             continue
 
-        top = sorted(paying, key=paying.get, reverse=True)
+        # 3 top by wins, 3 top by payout, 3 random = 9 total
+        win_counts = db_get_win_counts()
+        by_wins = sorted(paying.keys(), key=lambda a: win_counts.get(a, 0), reverse=True)[:3]
+        by_payout = sorted(paying.keys(), key=paying.get, reverse=True)[:3]
+        pool = [a for a in paying.keys() if a not in by_wins and a not in by_payout]
+        rand = random.sample(pool, min(3, len(pool)))
+        top = list(dict.fromkeys(by_wins + by_payout + rand))
+        random.shuffle(top)
 
         for asset in top:
             try:
@@ -131,11 +209,11 @@ while True:
             if direction is None: continue
 
             try:
-                ok, tid = api.buy(AMOUNT, asset, direction, 1)
+                ok, tid = api.buy(int(AMOUNT), asset, direction, 1)
                 if not ok: continue
             except: continue
 
-            log(f"  {asset} {direction} conf={confidence} TID={tid}")
+            log(f"  {asset} {direction} conf={confidence} TID={tid} bet={int(AMOUNT)}")
             time.sleep(68)
 
             try:
@@ -147,18 +225,25 @@ while True:
             profit = AMOUNT * (paying.get(asset, 87) / 100) if win else -AMOUNT
             trade = {"time": time.strftime('%Y-%m-%d %H:%M:%S'),
                      "asset": asset, "direction": direction,
-                     "amount": AMOUNT, "confidence": confidence,
+                     "amount": int(AMOUNT), "confidence": confidence,
                      "profit": profit, "win": win,
                      "payout": paying.get(asset, 87),
                      "balance": bal,
                      "utc_hour": int(time.strftime('%H', time.gmtime()))}
-            trades.append(trade)
-            save_trades(trades)
+            db_insert_trade(trade)
 
-            w = sum(1 for t in trades if t['win'])
-            num = len(trades)
-            wr = w / num * 100 if num > 0 else 0
-            log(f"  {asset} {direction.upper()} {'WIN' if win else 'LOSS'} now={w}/{num} {wr:.0f}% pnl={sum(t['profit'] for t in trades):+.1f}")
+            # Martingale
+            if win:
+                consecutive_losses = 0
+                AMOUNT = base_amount
+            else:
+                consecutive_losses += 1
+                AMOUNT = min(base_amount * (1.5 ** consecutive_losses), 200)
+            save_state(consecutive_losses)
+
+            total, wins, pnl = db_get_stats()
+            wr = wins / total * 100 if total > 0 else 0
+            log(f"  {asset} {direction.upper()} {'WIN' if win else 'LOSS'} now={wins}/{total} {wr:.0f}% pnl={pnl:+.1f} next_bet={int(AMOUNT)}")
             break
 
         try: api._close_connect = lambda: None; api._close_connect()
@@ -170,5 +255,4 @@ while True:
             if api: api._close_connect = lambda: None; api._close_connect()
         except: pass
 
-    # 20 seconds between cycles = ~100 calls/min
     time.sleep(20)
