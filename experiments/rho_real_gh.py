@@ -14,7 +14,7 @@ from iqoptionapi.stable_api import IQ_Option
 strat = importlib.import_module("new_algos.rho_bounce.strategy")
 log_file = os.path.join(RESULTS, "rho_practice.log")
 trades_file = os.path.join(RESULTS, "rho_practice_trades.json")
-PAYING = {"EURUSD-OTC":86,"GBPUSD-OTC":85,"USDCHF-OTC":85,"EURJPY-OTC":87,"BTCUSD-OTC-op":87}
+PAYING = {"EURUSD-OTC":86,"GBPUSD-OTC":85,"USDCHF-OTC":85,"USDJPY-OTC":85,"AUDUSD-OTC":85,"USDCAD-OTC":85,"NZDUSD-OTC":85,"EURGBP-OTC":85,"EURJPY-OTC":87,"GBPJPY-OTC":85,"EURCHF-OTC":85,"AUDJPY-OTC":85,"CADJPY-OTC":85,"CHFJPY-OTC":85,"NZDJPY-OTC":85,"XAUUSD-OTC":85,"GER30-OTC":85,"UK100-OTC":85,"NOKJPY-OTC":85,"ETHUSD-OTC":86,"XRPUSD-OTC":86}
 
 def log(msg):
     ts = time.strftime("%H:%M:%S")
