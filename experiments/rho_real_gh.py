@@ -36,10 +36,17 @@ def run_worker(args, timeout=25):
     env = {**os.environ, "PYTHONPATH": BASE_DIR + ":" + os.path.join(BASE_DIR, "..")}
     try:
         r = subprocess.run(["python3", worker] + args, capture_output=True, text=True, timeout=timeout, env=env, cwd=BASE_DIR)
+        if r.stderr:
+            for line in r.stderr.strip().split("\n")[:5]:
+                log(f"  WORKER: {line}")
         if r.returncode == 0 and r.stdout.strip():
             return r.stdout.strip()
-    except:
-        pass
+        else:
+            log(f"  WORKER exit={r.returncode}")
+    except subprocess.TimeoutExpired:
+        log(f"  WORKER TIMEOUT after {timeout}s")
+    except Exception as e:
+        log(f"  WORKER ERROR: {e}")
     return None
 
 def get_open_assets():
