@@ -32,9 +32,11 @@ jobs:
 
     - name: Save results
       if: always()
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
         git config user.email "bot@github.com"
         git config user.name "Bot"
         git add experiments/results/ || true
         git diff --staged --quiet || git commit -m "trades $(date -u '+%Y-%m-%d %H:%M')"
-        git push || true
+        git push https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git || true
