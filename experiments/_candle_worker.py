@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-import sys, os, time, json
+"""Worker: subprocess for candle/payout fetching with timeout handling."""
+import sys, os, time, json, signal
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
 from iqoptionapi.stable_api import IQ_Option
@@ -13,25 +14,45 @@ ASSETS = [
     'USDCAD-OTC','NZDUSD-OTC','EURGBP-OTC','EURJPY-OTC','GBPJPY-OTC',
     'EURCHF-OTC','AUDJPY-OTC','CADJPY-OTC','CHFJPY-OTC','NZDJPY-OTC',
     'XAUUSD-OTC','GER30-OTC','UK100-OTC','NOKJPY-OTC','ETHUSD-OTC','XRPUSD-OTC',
+    'EURUSD','GBPUSD','USDCHF','USDJPY','AUDUSD','USDCAD','NZDUSD','EURGBP',
+    'ETHUSD','XRPUSD','XAUUSD','GER30','UK100',
 ]
 
 api = IQ_Option(email, pwd)
 ok, r = api.connect()
 if not ok:
+    print(f'CONNECT_FAIL: {r}', file=sys.stderr)
     sys.exit(1)
 
 api.change_balance('PRACTICE')
-time.sleep(2)
+time.sleep(1)
 
 if mode == 'open':
     paying = {}
     for asset in ASSETS:
         try:
-            p = api.get_digital_payout(asset)
-            if p and p >= 85:
+            # Use 8s timeout per asset to avoid hanging
+            p = api.get_digital_payout(asset, seconds=8)
+            if p and p >= 80:
                 paying[asset] = p
-        except:
+        except Exception as e:
             pass
+    
+    # Fallback: try get_all_open_time
+    if not paying:
+        try:
+            open_times = api.get_all_open_time()
+            if open_times:
+                for atype in ['turbo', 'digital', 'binary']:
+                    if atype in open_times:
+                        for name, info in open_times[atype].items():
+                            if isinstance(info, dict) and info.get('open'):
+                                paying[name] = 87
+        except Exception as e:
+            print(f'OPEN_TIME_FALLBACK_FAIL: {e}', file=sys.stderr)
+    
+    if not paying:
+        print(f'NO_ASSETS_FOUND', file=sys.stderr)
     print(json.dumps(paying))
 
 elif mode == 'candles':
@@ -41,3 +62,5 @@ elif mode == 'candles':
     c = api.get_candles(asset, period, count, time.time())
     if c:
         print(json.dumps([[x.get('close',0), x.get('max',0), x.get('min',0), x.get('open',0)] for x in c]))
+    else:
+        print('[]')
