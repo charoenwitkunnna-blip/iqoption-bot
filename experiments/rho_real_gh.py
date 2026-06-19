@@ -76,7 +76,8 @@ if ok:
 
 top = sorted(PAYING.keys(), key=PAYING.get, reverse=True)
 for asset in top:
-    candles = get_candles_timeout(asset, timeout=20)
+    candles = get_candles_timeout(asset, timeout=25)
+    log(f"  {asset}: {len(candles) if candles else 0} candles")
     if not candles or len(candles) < 30:
         continue
     try:
