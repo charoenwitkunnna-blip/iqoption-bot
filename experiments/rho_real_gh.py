@@ -59,10 +59,24 @@ log(f"Balance: {bal}")
 
 top = sorted(PAYING.keys(), key=PAYING.get, reverse=True)
 for asset in top:
-    try:
-        candles = api.get_candles(asset, 60, 50, time.time())
-        if not candles or len(candles) < 30: continue
-    except: continue
+    candles = None
+    for _retry in range(2):
+        try:
+            candles = api.get_candles(asset, 60, 50, time.time())
+            if candles and len(candles) >= 30:
+                break
+        except:
+            pass
+        # Reconnect if get_candles fails
+        try:
+            api = IQ_Option(IQ_OPTION_EMAIL, IQ_OPTION_PASSWORD)
+            api.connect()
+            api.change_balance("PRACTICE")
+            time.sleep(2)
+        except:
+            pass
+    if not candles or len(candles) < 30:
+        continue
     try:
         direction, confidence = strat.analyze(api, asset, candles)
     except: continue
@@ -92,6 +106,8 @@ for asset in top:
     trades.append(trade)
     save_trades(trades)
     w = sum(1 for t in trades if t["win"])
-    log(f"{"WIN" if win else "LOSS"} {asset} now={w}/{len(trades)} pnl={sum(t["profit"] for t in trades):+.1f}")
+    result_str = "WIN" if win else "LOSS"
+    pnl = sum(t["profit"] for t in trades)
+    log(f"{result_str} {asset} now={w}/{len(trades)} pnl={pnl:+.1f}")
     break
 log("Done")
