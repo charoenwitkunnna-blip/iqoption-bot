@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """GitHub Actions version."""
-import sys, os, time, json, importlib
+import sys, os, time, json, importlib, logging
+logging.disable(logging.ERROR)
 
 AMOUNT = 5
 EXPIRY = 1
