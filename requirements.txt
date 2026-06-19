@@ -1,5 +1,3 @@
-iqoptionapi>=4.0
-pandas>=2.0
-pandas_ta>=0.3
-numpy>=1.24
-python-dotenv>=1.0
+git+https://github.com/Lu-Yi-Hsun/iqoptionapi.git
+numpy
+requests
