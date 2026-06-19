@@ -50,6 +50,7 @@ def run_worker(args, timeout=25):
     return None
 
 def get_open_assets():
+    log("  Fetching open assets...")
     result = run_worker(["open"], timeout=30)
     if result:
         try: return json.loads(result)
