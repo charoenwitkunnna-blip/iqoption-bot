@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""Worker: subprocess for candle/payout fetching with timeout handling."""
-import sys, os, time, json, signal
+"""Worker: subprocess for candle/payout fetching. Static asset list, no open_time calls."""
+import sys, os, time, json
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
 from iqoptionapi.stable_api import IQ_Option
@@ -28,39 +28,20 @@ api.change_balance('PRACTICE')
 time.sleep(1)
 
 if mode == 'open':
-    paying = {}
-    for asset in ASSETS:
-        try:
-            # Use 8s timeout per asset to avoid hanging
-            p = api.get_digital_payout(asset, seconds=8)
-            if p and p >= 80:
-                paying[asset] = p
-        except Exception as e:
-            pass
-    
-    # Fallback: try get_all_open_time
-    if not paying:
-        try:
-            open_times = api.get_all_open_time()
-            if open_times:
-                for atype in ['turbo', 'digital', 'binary']:
-                    if atype in open_times:
-                        for name, info in open_times[atype].items():
-                            if isinstance(info, dict) and info.get('open'):
-                                paying[name] = 87
-        except Exception as e:
-            print(f'OPEN_TIME_FALLBACK_FAIL: {e}', file=sys.stderr)
-    
-    if not paying:
-        print(f'NO_ASSETS_FOUND', file=sys.stderr)
+    # Return all assets with default payout — candles will filter out closed ones
+    paying = {a: 87 for a in ASSETS}
     print(json.dumps(paying))
 
 elif mode == 'candles':
     asset = sys.argv[2]
     period = int(sys.argv[3])
     count = int(sys.argv[4])
-    c = api.get_candles(asset, period, count, time.time())
-    if c:
-        print(json.dumps([[x.get('close',0), x.get('max',0), x.get('min',0), x.get('open',0)] for x in c]))
-    else:
+    try:
+        c = api.get_candles(asset, period, count, time.time())
+        if c:
+            print(json.dumps([[x.get('close',0), x.get('max',0), x.get('min',0), x.get('open',0)] for x in c]))
+        else:
+            print('[]')
+    except Exception as e:
+        print(f'CANDLE_ERROR: {e}', file=sys.stderr)
         print('[]')
