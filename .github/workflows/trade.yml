@@ -2,26 +2,30 @@ name: Rho Bounce Bot
 
 on:
   schedule:
-    - cron: '*/5 * * * *'  # Every 5 minutes
-  workflow_dispatch:  # Manual trigger
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
 
 jobs:
   trade:
     runs-on: ubuntu-latest
     timeout-minutes: 4
-    
+
     steps:
     - uses: actions/checkout@v4
-    
+
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
         python-version: '3.12'
-    
+
     - name: Install dependencies
       run: |
-        pip install iqoptionapi numpy requests
-    
+        pip install git+https://github.com/Lu-Yi-Hsun/iqoptionapi.git numpy requests
+        # Patch iqoptionapi for timeout handling
+        SITE=$(python3 -c "import iqoptionapi; print(iqoptionapi.__path__[0])")
+        sed -i 's/while global_value.balance_id == None:/import time as _t; _start=_t.time()\n    while global_value.balance_id == None:/' "$SITE/stable_api.py" || true
+        sed -i 's/while global_value.balance_id == None:/while global_value.balance_id == None and (time.time()-_start)<10:/' "$SITE/stable_api.py" || true
+
     - name: Run bot
       env:
         IQ_EMAIL: ${{ secrets.IQ_EMAIL }}
@@ -30,7 +34,7 @@ jobs:
         cd experiments
         python3 -u rho_real.py
       timeout-minutes: 3
-    
+
     - name: Save results
       if: always()
       run: |
