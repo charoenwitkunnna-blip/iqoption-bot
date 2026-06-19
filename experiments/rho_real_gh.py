@@ -149,7 +149,14 @@ while time.time() - start_time < MAX_RUNTIME:
         break
 
     if not found_signal:
-        log("No signals found")
+        log("No signals found, waiting 30s...")
+    
+    # Rate limit backoff — if too many 0-candle results, wait longer
+    elapsed = time.time() - start_time
+    if elapsed > 3600:  # After 1 hour, take longer breaks
+        time.sleep(60)
+    else:
+        time.sleep(30)
 
     # Wait between cycles
     time.sleep(30)
