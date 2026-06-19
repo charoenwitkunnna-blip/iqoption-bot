@@ -2,13 +2,13 @@ name: Rho Bounce Bot
 
 on:
   schedule:
-    - cron: '*/5 * * * *'
+    - cron: '0 */6 * * *'  # Every 6 hours
   workflow_dispatch:
 
 jobs:
   trade:
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 300  # 5 hours
 
     steps:
     - uses: actions/checkout@v4
@@ -27,8 +27,8 @@ jobs:
         IQ_PASSWORD: ${{ secrets.IQ_PASSWORD }}
       run: |
         cd experiments
-        MAX_CYCLES=3 python3 -u rho_real_gh.py
-      timeout-minutes: 7
+        python3 -u rho_real_gh.py
+      timeout-minutes: 290
 
     - name: Save results
       if: always()
