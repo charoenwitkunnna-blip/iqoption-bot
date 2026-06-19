@@ -45,6 +45,7 @@ def save_trades(trades):
 
 trades = load_trades()
 log("Starting...")
+api = IQ_Option(IQ_OPTION_EMAIL, IQ_OPTION_PASSWORD)
 ok, r = api.connect()
 log(f"Connect: {ok}")
 if not ok:
