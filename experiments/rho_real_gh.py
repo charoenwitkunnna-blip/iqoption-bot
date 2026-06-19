@@ -57,24 +57,24 @@ time.sleep(2)
 bal = api.get_balance()
 log(f"Balance: {bal}")
 
+def get_candles_timeout(api, asset, period, count, timeout=5):
+    """get_candles with timeout."""
+    import threading
+    result = [None]
+    def worker():
+        try:
+            result[0] = api.get_candles(asset, period, count, time.time())
+        except:
+            pass
+    t = threading.Thread(target=worker)
+    t.daemon = True
+    t.start()
+    t.join(timeout)
+    return result[0]
+
 top = sorted(PAYING.keys(), key=PAYING.get, reverse=True)
 for asset in top:
-    candles = None
-    for _retry in range(2):
-        try:
-            candles = api.get_candles(asset, 60, 50, time.time())
-            if candles and len(candles) >= 30:
-                break
-        except:
-            pass
-        # Reconnect if get_candles fails
-        try:
-            api = IQ_Option(IQ_OPTION_EMAIL, IQ_OPTION_PASSWORD)
-            api.connect()
-            api.change_balance("PRACTICE")
-            time.sleep(2)
-        except:
-            pass
+    candles = get_candles_timeout(api, asset, 60, 50, timeout=8)
     if not candles or len(candles) < 30:
         continue
     try:
