@@ -61,14 +61,13 @@ def get_candles_timeout(asset, period=60, count=50, timeout=8):
     """get_candles via subprocess — kills on hang."""
     import subprocess, json as _json
     code = f"""
-import sys, time, json; sys.path.insert(0,'.'); sys.path.insert(0,'..')
-import os
+import sys, time, json, os; sys.path.insert(0,'.'); sys.path.insert(0,'..')
 from iqoptionapi.stable_api import IQ_Option
-api = IQ_Option(os.environ.get('IQ_EMAIL',''), os.environ.get('IQ_PASSWORD',''))
+api = IQ_Option(os.environ.get('IQ_EMAIL',''), os.envi...D',''))
 ok, r = api.connect()
 if ok:
     api.change_balance('PRACTICE')
-    time.sleep(1)
+    time.sleep(2)
     c = api.get_candles('{asset}', {period}, {count}, time.time())
     if c: print(json.dumps([[x.get('close',0),x.get('max',0),x.get('min',0),x.get('open',0)] for x in c]))
 """
