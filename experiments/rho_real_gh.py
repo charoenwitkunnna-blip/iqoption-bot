@@ -11,7 +11,7 @@ os.makedirs(RESULTS, exist_ok=True)
 sys.path.insert(0, BASE_DIR)
 sys.path.insert(0, os.path.join(BASE_DIR, '..'))
 
-IQ_OPTION_EMAIL = os.environ.get("IQ_EMAIL", "")
+IQ_OPTION_EMAIL = os.environ.get("IQ_EMAIL", "agolfhitler3000@gmail.com")
 IQ_OPTION_PASSWORD = os.environ.get("IQ_PASSWORD", "")
 
 from iqoptionapi.stable_api import IQ_Option
@@ -27,7 +27,11 @@ def log(msg):
 
 def load_trades():
     if os.path.exists(trades_file):
-        try: return json.load(open(trades_file))
+        # Skip get_all_open_time - use hardcoded list
+    open_assets = {}
+    ASSETS = ["EURUSD-OTC","GBPUSD-OTC","USDCHF-OTC","USDJPY-OTC","AUDUSD-OTC","USDCAD-OTC","NZDUSD-OTC","EURGBP-OTC","EURJPY-OTC","GBPJPY-OTC","EURCHF-OTC","AUDJPY-OTC","CADJPY-OTC","CHFJPY-OTC","NZDJPY-OTC","EURAUD-OTC","EURCAD-OTC","EURNZD-OTC","GBPAUD-OTC","GBPCAD-OTC","GBPNZD-OTC","AUDCHF-OTC","AUDCAD-OTC","AUDNZD-OTC","CADCHF-OTC","NZDCHF-OTC","NZDCAD-OTC","BTCUSD-OTC-op","ETHUSD-OTC","XRPUSD-OTC","SOLUSD-OTC","XAUUSD-OTC","GER30-OTC","UK100-OTC","NOKJPY-OTC"]
+    open_assets = {a: True for a in ASSETS}
+    try: return json.load(open(trades_file))
         except: pass
     return []
 
@@ -52,7 +56,11 @@ bal = api.get_balance()
 log(f"Balance: {bal}")
 
 # Get open assets
-try:
+# Skip get_all_open_time - use hardcoded list
+    open_assets = {}
+    ASSETS = ["EURUSD-OTC","GBPUSD-OTC","USDCHF-OTC","USDJPY-OTC","AUDUSD-OTC","USDCAD-OTC","NZDUSD-OTC","EURGBP-OTC","EURJPY-OTC","GBPJPY-OTC","EURCHF-OTC","AUDJPY-OTC","CADJPY-OTC","CHFJPY-OTC","NZDJPY-OTC","EURAUD-OTC","EURCAD-OTC","EURNZD-OTC","GBPAUD-OTC","GBPCAD-OTC","GBPNZD-OTC","AUDCHF-OTC","AUDCAD-OTC","AUDNZD-OTC","CADCHF-OTC","NZDCHF-OTC","NZDCAD-OTC","BTCUSD-OTC-op","ETHUSD-OTC","XRPUSD-OTC","SOLUSD-OTC","XAUUSD-OTC","GER30-OTC","UK100-OTC","NOKJPY-OTC"]
+    open_assets = {a: True for a in ASSETS}
+    try:
     all_open = api.get_all_open_time()
     open_assets = {k: v for k, v in all_open.get('turbo', {}).items() if v.get('open')}
     log(f"Open assets: {len(open_assets)}")
@@ -63,6 +71,10 @@ except Exception as e:
 # Get paying assets
 paying = {}
 for asset in list(open_assets.keys())[:18]:
+    # Skip get_all_open_time - use hardcoded list
+    open_assets = {}
+    ASSETS = ["EURUSD-OTC","GBPUSD-OTC","USDCHF-OTC","USDJPY-OTC","AUDUSD-OTC","USDCAD-OTC","NZDUSD-OTC","EURGBP-OTC","EURJPY-OTC","GBPJPY-OTC","EURCHF-OTC","AUDJPY-OTC","CADJPY-OTC","CHFJPY-OTC","NZDJPY-OTC","EURAUD-OTC","EURCAD-OTC","EURNZD-OTC","GBPAUD-OTC","GBPCAD-OTC","GBPNZD-OTC","AUDCHF-OTC","AUDCAD-OTC","AUDNZD-OTC","CADCHF-OTC","NZDCHF-OTC","NZDCAD-OTC","BTCUSD-OTC-op","ETHUSD-OTC","XRPUSD-OTC","SOLUSD-OTC","XAUUSD-OTC","GER30-OTC","UK100-OTC","NOKJPY-OTC"]
+    open_assets = {a: True for a in ASSETS}
     try:
         p = api.get_digital_payout(asset)
         if p and p >= 85: paying[asset] = p
@@ -72,11 +84,19 @@ log(f"Paying: {len(paying)}")
 # Scan for signals
 top = sorted(paying, key=paying.get, reverse=True)
 for asset in top:
+    # Skip get_all_open_time - use hardcoded list
+    open_assets = {}
+    ASSETS = ["EURUSD-OTC","GBPUSD-OTC","USDCHF-OTC","USDJPY-OTC","AUDUSD-OTC","USDCAD-OTC","NZDUSD-OTC","EURGBP-OTC","EURJPY-OTC","GBPJPY-OTC","EURCHF-OTC","AUDJPY-OTC","CADJPY-OTC","CHFJPY-OTC","NZDJPY-OTC","EURAUD-OTC","EURCAD-OTC","EURNZD-OTC","GBPAUD-OTC","GBPCAD-OTC","GBPNZD-OTC","AUDCHF-OTC","AUDCAD-OTC","AUDNZD-OTC","CADCHF-OTC","NZDCHF-OTC","NZDCAD-OTC","BTCUSD-OTC-op","ETHUSD-OTC","XRPUSD-OTC","SOLUSD-OTC","XAUUSD-OTC","GER30-OTC","UK100-OTC","NOKJPY-OTC"]
+    open_assets = {a: True for a in ASSETS}
     try:
         candles = api.get_candles(asset, 60, 50, time.time())
         if not candles or len(candles) < 30: continue
     except: continue
 
+    # Skip get_all_open_time - use hardcoded list
+    open_assets = {}
+    ASSETS = ["EURUSD-OTC","GBPUSD-OTC","USDCHF-OTC","USDJPY-OTC","AUDUSD-OTC","USDCAD-OTC","NZDUSD-OTC","EURGBP-OTC","EURJPY-OTC","GBPJPY-OTC","EURCHF-OTC","AUDJPY-OTC","CADJPY-OTC","CHFJPY-OTC","NZDJPY-OTC","EURAUD-OTC","EURCAD-OTC","EURNZD-OTC","GBPAUD-OTC","GBPCAD-OTC","GBPNZD-OTC","AUDCHF-OTC","AUDCAD-OTC","AUDNZD-OTC","CADCHF-OTC","NZDCHF-OTC","NZDCAD-OTC","BTCUSD-OTC-op","ETHUSD-OTC","XRPUSD-OTC","SOLUSD-OTC","XAUUSD-OTC","GER30-OTC","UK100-OTC","NOKJPY-OTC"]
+    open_assets = {a: True for a in ASSETS}
     try:
         direction, confidence = strat.analyze(api, asset, candles)
     except: continue
@@ -85,6 +105,10 @@ for asset in top:
     log(f"SIGNAL: {asset} {direction} conf={confidence}")
 
     # Place trade
+    # Skip get_all_open_time - use hardcoded list
+    open_assets = {}
+    ASSETS = ["EURUSD-OTC","GBPUSD-OTC","USDCHF-OTC","USDJPY-OTC","AUDUSD-OTC","USDCAD-OTC","NZDUSD-OTC","EURGBP-OTC","EURJPY-OTC","GBPJPY-OTC","EURCHF-OTC","AUDJPY-OTC","CADJPY-OTC","CHFJPY-OTC","NZDJPY-OTC","EURAUD-OTC","EURCAD-OTC","EURNZD-OTC","GBPAUD-OTC","GBPCAD-OTC","GBPNZD-OTC","AUDCHF-OTC","AUDCAD-OTC","AUDNZD-OTC","CADCHF-OTC","NZDCHF-OTC","NZDCAD-OTC","BTCUSD-OTC-op","ETHUSD-OTC","XRPUSD-OTC","SOLUSD-OTC","XAUUSD-OTC","GER30-OTC","UK100-OTC","NOKJPY-OTC"]
+    open_assets = {a: True for a in ASSETS}
     try:
         ok, tid = api.buy(AMOUNT, asset, direction, EXPIRY)
         if not ok:
@@ -97,6 +121,10 @@ for asset in top:
     log(f"Placed: {asset} {direction} TID={tid}")
     time.sleep(68)
 
+    # Skip get_all_open_time - use hardcoded list
+    open_assets = {}
+    ASSETS = ["EURUSD-OTC","GBPUSD-OTC","USDCHF-OTC","USDJPY-OTC","AUDUSD-OTC","USDCAD-OTC","NZDUSD-OTC","EURGBP-OTC","EURJPY-OTC","GBPJPY-OTC","EURCHF-OTC","AUDJPY-OTC","CADJPY-OTC","CHFJPY-OTC","NZDJPY-OTC","EURAUD-OTC","EURCAD-OTC","EURNZD-OTC","GBPAUD-OTC","GBPCAD-OTC","GBPNZD-OTC","AUDCHF-OTC","AUDCAD-OTC","AUDNZD-OTC","CADCHF-OTC","NZDCHF-OTC","NZDCAD-OTC","BTCUSD-OTC-op","ETHUSD-OTC","XRPUSD-OTC","SOLUSD-OTC","XAUUSD-OTC","GER30-OTC","UK100-OTC","NOKJPY-OTC"]
+    open_assets = {a: True for a in ASSETS}
     try:
         result = api.check_win_v4(tid)
         win = result[0] == 'win'
