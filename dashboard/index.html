@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RHO // Trading Terminal</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #080808;
+  --surface: #101010;
+  --surface-2: #161616;
+  --border: #1c1c1c;
+  --border-light: #252525;
+  --amber: #c8a000;
+  --amber-dim: #8a6e00;
+  --amber-glow: rgba(200, 160, 0, 0.08);
+  --win: #22c55e;
+  --win-bg: rgba(34, 197, 94, 0.06);
+  --loss: #ef4444;
+  --loss-bg: rgba(239, 68, 68, 0.06);
+  --text: #e4e4e7;
+  --text-dim: #666;
+  --text-muted: #3a3a3a;
+  --mono: 'IBM Plex Mono', 'SF Mono', 'Fira Code', monospace;
+  --sans: 'Inter', -apple-system, sans-serif;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html { font-size: 14px; }
+body { font-family: var(--sans); background: var(--bg); color: var(--text); -webkit-font-smoothing: antialiased; }
+
+/* LAYOUT */
+.shell { max-width: 1440px; margin: 0 auto; padding: 24px 32px 64px; }
+
+/* HEADER */
+.header { display: flex; align-items: baseline; justify-content: space-between; padding-bottom: 20px; border-bottom: 1px solid var(--border); margin-bottom: 24px; }
+.header h1 { font-family: var(--mono); font-weight: 300; font-size: 1.1rem; letter-spacing: 0.15em; text-transform: uppercase; color: var(--text-dim); }
+.header h1 span { color: var(--amber); font-weight: 600; }
+.header-meta { font-family: var(--mono); font-size: 0.75rem; color: var(--text-muted); letter-spacing: 0.05em; }
+.header-meta .live { color: var(--win); }
+
+/* TRADE PULSE — signature element */
+.pulse-section { margin-bottom: 32px; }
+.pulse-label { font-family: var(--mono); font-size: 0.7rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 8px; }
+.pulse-bar { display: flex; gap: 2px; height: 32px; }
+.pulse-segment { flex: 1; min-width: 0; border-radius: 1px; transition: opacity 0.2s; cursor: default; position: relative; }
+.pulse-segment.win { background: var(--win); opacity: 0.7; }
+.pulse-segment.loss { background: var(--loss); opacity: 0.7; }
+.pulse-segment:hover { opacity: 1; }
+.pulse-segment:hover::after { content: attr(data-tip); position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); background: var(--surface-2); border: 1px solid var(--border-light); padding: 4px 8px; font-family: var(--mono); font-size: 0.65rem; white-space: nowrap; color: var(--text); z-index: 10; margin-bottom: 4px; }
+
+/* STATS ROW */
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 1px; background: var(--border); border: 1px solid var(--border); margin-bottom: 32px; }
+.stat { background: var(--surface); padding: 16px 14px; }
+.stat-label { font-family: var(--mono); font-size: 0.6rem; letter-spacing: 0.15em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 6px; }
+.stat-value { font-family: var(--mono); font-weight: 600; font-size: 1.5rem; line-height: 1; }
+.stat-value.positive { color: var(--win); }
+.stat-value.negative { color: var(--loss); }
+.stat-value.amber { color: var(--amber); }
+.stat-sub { font-family: var(--mono); font-size: 0.7rem; color: var(--text-dim); margin-top: 4px; }
+
+/* CHARTS GRID */
+.charts { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--border); border: 1px solid var(--border); margin-bottom: 32px; }
+.chart-panel { background: var(--surface); padding: 20px; min-height: 280px; }
+.chart-panel.full { grid-column: 1 / -1; }
+.chart-title { font-family: var(--mono); font-size: 0.7rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+.chart-title::before { content: ''; width: 3px; height: 10px; background: var(--amber); display: inline-block; }
+
+/* CSS-ONLY BAR CHART */
+.bar-chart { display: flex; align-items: flex-end; gap: 1px; height: 180px; padding-top: 20px; }
+.bar-col { flex: 1; display: flex; flex-direction: column; align-items: center; height: 100%; justify-content: flex-end; }
+.bar { width: 100%; min-height: 1px; border-radius: 1px 1px 0 0; transition: height 0.4s ease; position: relative; }
+.bar.win-bar { background: var(--win); opacity: 0.6; }
+.bar.loss-bar { background: var(--loss); opacity: 0.6; }
+.bar.mixed { background: var(--amber-dim); opacity: 0.5; }
+.bar:hover { opacity: 1; }
+.bar-label { font-family: var(--mono); font-size: 0.55rem; color: var(--text-muted); margin-top: 6px; writing-mode: vertical-rl; transform: rotate(180deg); }
+.bar-value { font-family: var(--mono); font-size: 0.55rem; color: var(--text-dim); position: absolute; top: -16px; width: 100%; text-align: center; }
+
+/* PNL LINE (CSS) */
+.pnl-wrap { display: flex; gap: 8px; }
+.pnl-yaxis { display: flex; flex-direction: column; justify-content: space-between; padding: 0 4px; min-width: 48px; }
+.pnl-yaxis span { font-family: var(--mono); font-size: 0.55rem; color: var(--text-muted); text-align: right; }
+.pnl-track { position: relative; height: 180px; border-left: 1px solid var(--border-light); border-bottom: 1px solid var(--border-light); flex: 1; }
+.pnl-track .zero-line { position: absolute; left: 0; right: 0; border-top: 1px dashed var(--text-muted); opacity: 0.3; }
+.pnl-svg { width: 100%; height: 100%; }
+
+/* HEATMAP */
+.heatmap { display: grid; grid-template-columns: 40px repeat(24, 1fr); gap: 1px; }
+.heatmap-label { font-family: var(--mono); font-size: 0.55rem; color: var(--text-muted); display: flex; align-items: center; padding-right: 6px; }
+.heatmap-cell { aspect-ratio: 1; min-height: 18px; border-radius: 1px; cursor: default; position: relative; }
+.heatmap-cell:hover::after { content: attr(data-tip); position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); background: var(--surface-2); border: 1px solid var(--border-light); padding: 3px 6px; font-family: var(--mono); font-size: 0.55rem; white-space: nowrap; color: var(--text); z-index: 10; margin-bottom: 4px; }
+.heatmap-hour { font-family: var(--mono); font-size: 0.5rem; color: var(--text-muted); text-align: center; padding-bottom: 4px; }
+
+/* ASSET TABLE */
+.table-section { border: 1px solid var(--border); margin-bottom: 32px; }
+.table-header { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: var(--surface); border-bottom: 1px solid var(--border); }
+.table-header h3 { font-family: var(--mono); font-size: 0.7rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-muted); }
+table { width: 100%; border-collapse: collapse; }
+th { font-family: var(--mono); font-size: 0.6rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-muted); text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--border); cursor: pointer; user-select: none; position: sticky; top: 0; background: var(--surface); }
+th:hover { color: var(--text-dim); }
+th .sort-arrow { color: var(--amber); margin-left: 4px; }
+td { font-family: var(--mono); font-size: 0.75rem; padding: 7px 12px; border-bottom: 1px solid var(--border); color: var(--text-dim); }
+tr:hover td { background: var(--surface-2); color: var(--text); }
+td.asset-name { color: var(--text); font-weight: 500; }
+td.positive { color: var(--win); }
+td.negative { color: var(--loss); }
+td .wr-bar { display: inline-block; height: 4px; border-radius: 1px; margin-right: 6px; vertical-align: middle; }
+
+/* RECENT TRADES */
+.trade-row td { font-size: 0.7rem; }
+.trade-row.win-row td { background: var(--win-bg); }
+.trade-row.loss-row td { background: var(--loss-bg); }
+.badge { display: inline-block; padding: 1px 6px; font-family: var(--mono); font-size: 0.6rem; font-weight: 600; letter-spacing: 0.05em; border-radius: 1px; }
+.badge-put { background: rgba(139, 32, 32, 0.15); color: var(--loss); }
+.badge-call { background: rgba(45, 122, 58, 0.15); color: var(--win); }
+.badge-win { background: var(--win-bg); color: var(--win); }
+.badge-loss { background: var(--loss-bg); color: var(--loss); }
+
+/* DONUT */
+.donut-wrap { display: flex; align-items: center; gap: 24px; }
+.donut-legend { display: flex; flex-direction: column; gap: 6px; }
+.donut-legend-item { display: flex; align-items: center; gap: 8px; font-family: var(--mono); font-size: 0.7rem; color: var(--text-dim); }
+.donut-legend-dot { width: 8px; height: 8px; border-radius: 1px; }
+
+/* CONFIDENCE BARS */
+.conf-bars { display: flex; flex-direction: column; gap: 12px; justify-content: center; height: 180px; }
+.conf-row { display: flex; align-items: center; gap: 12px; }
+.conf-label { font-family: var(--mono); font-size: 0.7rem; color: var(--text-dim); width: 60px; text-align: right; }
+.conf-track { flex: 1; height: 24px; background: var(--surface-2); border-radius: 1px; overflow: hidden; position: relative; }
+.conf-fill { height: 100%; border-radius: 1px; transition: width 0.6s ease; }
+.conf-value { font-family: var(--mono); font-size: 0.65rem; color: var(--text-dim); width: 60px; }
+
+/* RESPONSIVE */
+@media (max-width: 900px) {
+  .shell { padding: 16px; }
+  .charts { grid-template-columns: 1fr; }
+  .stats { grid-template-columns: repeat(3, 1fr); }
+  .header { flex-direction: column; gap: 4px; }
+  .bar-label { writing-mode: horizontal-tb; transform: none; font-size: 0.5rem; }
+}
+@media (max-width: 600px) {
+  .stats { grid-template-columns: repeat(2, 1fr); }
+  .stat-value { font-size: 1.2rem; }
+  .heatmap { grid-template-columns: 30px repeat(24, 1fr); }
+}
+
+/* ANIMATIONS */
+@keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+.stat, .chart-panel, .table-section, .pulse-section { animation: fadeIn 0.4s ease both; }
+.stat:nth-child(2) { animation-delay: 0.05s; }
+.stat:nth-child(3) { animation-delay: 0.1s; }
+.stat:nth-child(4) { animation-delay: 0.15s; }
+.stat:nth-child(5) { animation-delay: 0.2s; }
+.stat:nth-child(6) { animation-delay: 0.25s; }
+.stat:nth-child(7) { animation-delay: 0.3s; }
+.stat:nth-child(8) { animation-delay: 0.35s; }
+</style>
+</head>
+<body>
+<div class="shell">
+  <div class="header">
+    <h1><span>RHO</span> // Trading Terminal</h1>
+    <div class="header-meta">
+      <span class="live">●</span> LIVE &nbsp;·&nbsp; Updated <span id="updatedAt">--:--:--</span> &nbsp;·&nbsp; Auto-refresh 30s
+    </div>
+  </div>
+
+  <!-- TRADE PULSE -->
+  <div class="pulse-section">
+    <div class="pulse-label">Trade Pulse — Last 30 Outcomes</div>
+    <div class="pulse-bar" id="pulseBar"></div>
+  </div>
+
+  <!-- STATS -->
+  <div class="stats" id="statsRow"></div>
+
+  <!-- CHARTS ROW 1 -->
+  <div class="charts">
+    <div class="chart-panel full">
+      <div class="chart-title">Cumulative P&L</div>
+      <div class="pnl-wrap">
+        <div class="pnl-yaxis" id="pnlYaxis"></div>
+        <div class="pnl-track" id="pnlTrack">
+          <svg class="pnl-svg" id="pnlSvg" preserveAspectRatio="none"></svg>
+        </div>
+      </div>
+    </div>
+    <div class="chart-panel">
+      <div class="chart-title">Win Rate by Hour (UTC)</div>
+      <div class="pnl-wrap">
+        <div class="pnl-yaxis" id="hourYaxis"></div>
+        <div class="bar-chart" id="hourChart" style="flex:1"></div>
+      </div>
+    </div>
+    <div class="chart-panel">
+      <div class="chart-title">Asset Type Breakdown</div>
+      <div class="donut-wrap" id="donutWrap"></div>
+    </div>
+    <div class="chart-panel">
+      <div class="chart-title">Confidence Analysis</div>
+      <div class="conf-bars" id="confBars"></div>
+    </div>
+    <div class="chart-panel">
+      <div class="chart-title">Win Rate by Day</div>
+      <div class="bar-chart" id="dayChart"></div>
+    </div>
+    <div class="chart-panel full">
+      <div class="chart-title">Performance Heatmap</div>
+      <div class="heatmap" id="heatmap"></div>
+    </div>
+  </div>
+
+  <!-- ASSET TABLE -->
+  <div class="table-section">
+    <div class="table-header">
+      <h3>Asset Performance</h3>
+      <div class="header-meta" id="assetCount"></div>
+    </div>
+    <div style="max-height: 400px; overflow-y: auto;">
+      <table id="assetTable">
+        <thead><tr>
+          <th data-sort="asset">Asset</th>
+          <th data-sort="trades">Trades <span class="sort-arrow">▼</span></th>
+          <th data-sort="wins">W</th>
+          <th data-sort="losses">L</th>
+          <th data-sort="wr">WR%</th>
+          <th data-sort="pnl">P&L</th>
+        </tr></thead>
+        <tbody id="assetBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- RECENT TRADES -->
+  <div class="table-section">
+    <div class="table-header">
+      <h3>Recent Trades</h3>
+      <div class="header-meta" id="tradeCount"></div>
+    </div>
+    <div style="max-height: 500px; overflow-y: auto;">
+      <table>
+        <thead><tr>
+          <th>Time</th><th>Asset</th><th>Dir</th><th>Conf</th><th>Result</th><th>P&L</th>
+        </tr></thead>
+        <tbody id="tradesBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+const CAT_MAP = {
+  index: ['GER30','UK100','US30','SP500','AUS200','JP225','EU50','FR40','HK33','USNDAQ','US2000','SP35'],
+  crypto: ['BTC','ETH','XRP','SOL','DOT','LINK','ADA','AVAX','ICP','BCH','LTC','TIA','ARB','INJ','SUI','FET','WLD','SEI','TON','HBAR','ONDO','SAND','PYTH','RAYDIUM','GALA','WIF','SHIB','DASH','IOTA','PENGU','LABUBU','MELANIA','BONK','FLOKI','TRUMP','PEPE','ORDI','STX','JUP','TAO','SATS','MANA','GRT','DYDX','XAU','XAG','UKO','BRENT','RENDER','FARTCOIN','APE','AAVE','UNI','NEAR','FTM','ALGO','ATOM','EOS','IMX','LINK','DOT','ICP','STX','DYDX','MATIC'],
+  stock: ['APPLE','GOOGLE','META','TESLA','AMAZON','NFLX','JPM','CITI','NIKE','INTEL','MCDON','FB','SNAP','AIG','GEV','HYPE','KLARNA','LUNA','MU','NVDA','PLTR','SNDK','WDC','FWONA','MSFT','MORSTAN','COKE','COFFEE','COTTON','CANNABIS','CASINOS','SPACEX','URANIUM','BIDU','AMZN','EBAY']
+};
+function cat(a){for(const[k,ws]of Object.entries(CAT_MAP))if(ws.some(w=>a.includes(w)))return k;return'forex';}
+const DAY_NAMES=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+let sortCol='trades', sortAsc=false;
+function loadData(){
+  fetch('/data').then(r=>r.json()).then(render).catch(()=>{});
+}
+
+function render(trades){
+  if(!trades||!trades.length)return;
+  document.getElementById('updatedAt').textContent=new Date().toLocaleTimeString();
+
+  // Stats
+  const W=trades.filter(t=>t.win).length, L=trades.length-W;
+  const wr=(W/trades.length*100);
+  const pnl=trades.reduce((s,t)=>s+t.profit,0);
+  let curStreak=0,curType='';
+  for(let i=trades.length-1;i>=0;i--){if(i===trades.length-1){curStreak=1;curType=trades[i].win?'W':'L';}else if(trades[i].win===(curType==='W'))curStreak++;else break;}
+  let bestW=0,worstL=0,cw=0,cl=0;
+  trades.forEach(t=>{if(t.win){cw++;cl=0;bestW=Math.max(bestW,cw);}else{cl++;cw=0;worstL=Math.max(worstL,cl);}});
+  const today=new Date().toISOString().split('T')[0];
+  const todayPnl=trades.filter(t=>t.time.startsWith(today)).reduce((s,t)=>s+t.profit,0);
+
+  document.getElementById('statsRow').innerHTML=`
+    <div class="stat"><div class="stat-label">Total Trades</div><div class="stat-value amber">${trades.length}</div></div>
+    <div class="stat"><div class="stat-label">Win Rate</div><div class="stat-value ${wr>=60?'positive':wr>=54?'amber':'negative'}">${wr.toFixed(1)}%</div><div class="stat-sub">${W}W / ${L}L</div></div>
+    <div class="stat"><div class="stat-label">Total P&L</div><div class="stat-value ${pnl>=0?'positive':'negative'}">${pnl>=0?'+':''}${pnl.toFixed(0)}</div><div class="stat-sub">THB</div></div>
+    <div class="stat"><div class="stat-label">Streak</div><div class="stat-value ${curType==='W'?'positive':'negative'}">${curStreak}${curType}</div><div class="stat-sub">current</div></div>
+    <div class="stat"><div class="stat-label">Best Run</div><div class="stat-value positive">${bestW}W</div></div>
+    <div class="stat"><div class="stat-label">Worst Run</div><div class="stat-value negative">${worstL}L</div></div>
+    <div class="stat"><div class="stat-label">Avg / Trade</div><div class="stat-value ${pnl/trades.length>=0?'positive':'negative'}">${(pnl/trades.length).toFixed(1)}</div><div class="stat-sub">THB</div></div>
+    <div class="stat"><div class="stat-label">Today</div><div class="stat-value ${todayPnl>=0?'positive':'negative'}">${todayPnl>=0?'+':''}${todayPnl.toFixed(0)}</div><div class="stat-sub">THB</div></div>
+  `;
+
+  // Trade Pulse
+  const last30=trades.slice(-30);
+  document.getElementById('pulseBar').innerHTML=last30.map(t=>
+    `<div class="pulse-segment ${t.win?'win':'loss'}" data-tip="${t.asset} ${t.direction.toUpperCase()} ${t.win?'+':''}${t.profit.toFixed(1)}"></div>`
+  ).join('');
+
+  // PnL SVG
+  let cum=0;const pts=trades.map((t,i)=>{cum+=t.profit;return{x:i,y:cum};});
+  const minY=Math.min(0,...pts.map(p=>p.y)),maxY=Math.max(0,...pts.map(p=>p.y));
+  const rangeY=maxY-minY||1;
+  const svg=document.getElementById('pnlSvg');
+  const W2=1000,H=200;
+  svg.setAttribute('viewBox',`0 0 ${W2} ${H}`);
+  const zeroY=H-((0-minY)/rangeY*H);
+  const pathD=pts.map((p,i)=>{
+    const x=(i/(pts.length-1))*W2;
+    const y=H-((p.y-minY)/rangeY*H);
+    return(i===0?'M':'L')+`${x},${y}`;
+  }).join(' ');
+  const fillD=pathD+` L${W2},${H} L0,${H} Z`;
+  const color=pnl>=0?'var(--win)':'var(--loss)';
+  svg.innerHTML=`
+    <line x1="0" y1="${zeroY}" x2="${W2}" y2="${zeroY}" stroke="var(--text-muted)" stroke-width="0.5" stroke-dasharray="4,4" opacity="0.3"/>
+    <path d="${fillD}" fill="${color}" opacity="0.08"/>
+    <path d="${pathD}" fill="none" stroke="${color}" stroke-width="1.5"/>
+  `;
+  // Position zero line
+  // PnL y-axis labels
+  const pnlSteps=5;
+  let pnlYhtml='';
+  for(let i=pnlSteps;i>=0;i--){
+    const val=minY+(rangeY*(i/pnlSteps));
+    pnlYhtml+=`<span>${val>=0?'+':''}${val.toFixed(0)}</span>`;
+  }
+  document.getElementById('pnlYaxis').innerHTML=pnlYhtml;
+  const track=document.getElementById('pnlTrack');
+  const zeroPct=(zeroY/H*100);
+  track.querySelector('.zero-line')?track.querySelector('.zero-line').style.top=zeroPct+'%':0;
+
+  // Hour chart
+  const hours=Array(24).fill(null).map(()=>({w:0,l:0}));
+  trades.forEach(t=>{const h=parseInt(t.time.split(' ')[1].split(':')[0]);t.win?hours[h].w++:hours[h].l++;});
+  const maxH=Math.max(1,...hours.map(h=>h.w+h.l));
+  // Hour y-axis (trade count)
+  let hourYhtml='';
+  for(let i=4;i>=0;i--){
+    const val=Math.round(maxH*(i/4));
+    hourYhtml+=`<span>${val}</span>`;
+  }
+  document.getElementById('hourYaxis').innerHTML=hourYhtml;
+  document.getElementById('hourChart').innerHTML=hours.map((h,i)=>{
+    const total=h.w+h.l;const wr2=total?h.w/total*100:0;
+    const hgt=total/maxH*100;
+    const cls=total===0?'':wr2>=60?'win-bar':wr2>=54?'mixed':'loss-bar';
+    return`<div class="bar-col"><div class="bar ${cls}" style="height:${hgt}%" title="${i}:00 — ${total} trades, ${wr2.toFixed(0)}% WR"><span class="bar-value">${total?wr2.toFixed(0)+'%':''}</span></div><div class="bar-label">${i}</div></div>`;
+  }).join('');
+
+  // Day chart
+  const days=Array(7).fill(null).map(()=>({w:0,l:0}));
+  trades.forEach(t=>{const d=new Date(t.time).getDay();t.win?days[d].w++:days[d].l++;});
+  const maxD=Math.max(1,...days.map(d=>d.w+d.l));
+  document.getElementById('dayChart').innerHTML=days.map((d,i)=>{
+    const total=d.w+d.l;const wr2=total?d.w/total*100:0;
+    const hgt=total/maxD*100;
+    const cls=total===0?'':wr2>=60?'win-bar':wr2>=54?'mixed':'loss-bar';
+    return`<div class="bar-col"><div class="bar ${cls}" style="height:${hgt}%" title="${DAY_NAMES[i]} — ${total} trades, ${wr2.toFixed(0)}% WR"><span class="bar-value">${total||''}</span></div><div class="bar-label">${DAY_NAMES[i]}</div></div>`;
+  }).join('');
+
+  // Donut (CSS only — using conic-gradient)
+  const types={};trades.forEach(t=>{const c=cat(t.asset);if(!types[c])types[c]={w:0,l:0};t.win?types[c].w++:types[c].l++;});
+  const typeNames=Object.keys(types);
+  const typeColors={forex:'#4a7aff',crypto:'#ff8c42',index:'#42d392',stock:'#d946ef',other:'#888'};
+  let cum2=0;const segments=[];
+  typeNames.forEach(k=>{const pct=(types[k].w+types[k].l)/trades.length*100;segments.push(`${typeColors[k]||'#888'} ${cum2}% ${cum2+pct}%`);cum2+=pct;});
+  document.getElementById('donutWrap').innerHTML=`
+    <div style="width:140px;height:140px;border-radius:50%;background:conic-gradient(${segments.join(',')});display:flex;align-items:center;justify-content:center;">
+      <div style="width:90px;height:90px;border-radius:50%;background:var(--surface);display:flex;align-items:center;justify-content:center;">
+        <span style="font-family:var(--mono);font-size:1.1rem;font-weight:600;color:var(--amber);">${trades.length}</span>
+      </div>
+    </div>
+    <div class="donut-legend">
+      ${typeNames.map(k=>{
+        const total=types[k].w+types[k].l;const wr2=total?types[k].w/total*100:0;
+        return`<div class="donut-legend-item"><div class="donut-legend-dot" style="background:${typeColors[k]||'#888'}"></div>${k} · ${total} trades · ${wr2.toFixed(0)}%</div>`;
+      }).join('')}
+    </div>
+  `;
+
+  // Confidence
+  const confs={};trades.forEach(t=>{const c=t.confidence||70;if(!confs[c])confs[c]={w:0,l:0};t.win?confs[c].w++:confs[c].l++;});
+  const maxConf=Math.max(1,...Object.values(confs).map(c=>c.w+c.l));
+  document.getElementById('confBars').innerHTML=Object.entries(confs).sort((a,b)=>b[0]-a[0]).map(([c,d])=>{
+    const total=d.w+d.l;const wr2=total?d.w/total*100:0;
+    const color=wr2>=60?'var(--win)':wr2>=54?'var(--amber)':'var(--loss)';
+    return`<div class="conf-row"><div class="conf-label">conf=${c}</div><div class="conf-track"><div class="conf-fill" style="width:${wr2}%;background:${color}"></div></div><div class="conf-value">${wr2.toFixed(0)}% · ${total}</div></div>`;
+  }).join('');
+
+  // Heatmap
+  const hm={};trades.forEach(t=>{const d=new Date(t.time).getDay();const h=parseInt(t.time.split(' ')[1].split(':')[0]);const k=`${d}-${h}`;if(!hm[k])hm[k]={w:0,l:0};t.win?hm[k].w++:hm[k].l++;});
+  let hmHtml='<div></div>';
+  for(let h=0;h<24;h++)hmHtml+=`<div class="heatmap-hour">${h}</div>`;
+  for(let d=0;d<7;d++){
+    hmHtml+=`<div class="heatmap-label">${DAY_NAMES[d]}</div>`;
+    for(let h=0;h<24;h++){
+      const k=`${d}-${h}`;const v=hm[k];
+      if(v){const total=v.w+v.l;const wr2=v.w/total*100;
+        const alpha=Math.min(0.8,total*0.15+0.2);
+        const color=wr2>=60?`rgba(45,122,58,${alpha})`:wr2>=54?`rgba(200,160,0,${alpha})`:`rgba(139,32,32,${alpha})`;
+        hmHtml+=`<div class="heatmap-cell" style="background:${color}" data-tip="${DAY_NAMES[d]} ${h}:00 — ${total}t ${wr2.toFixed(0)}%"></div>`;
+      }else{hmHtml+=`<div class="heatmap-cell" style="background:var(--surface-2)"></div>`;}
+    }
+  }
+  document.getElementById('heatmap').innerHTML=hmHtml;
+
+  // Asset table
+  const assets={};trades.forEach(t=>{if(!assets[t.asset])assets[t.asset]={w:0,l:0,pnl:0};t.win?assets[t.asset].w++:assets[t.asset].l++;assets[t.asset].pnl+=t.profit;});
+  let assetArr=Object.entries(assets).map(([a,s])=>({asset:a,trades:s.w+s.l,wins:s.w,losses:s.l,wr:s.w/(s.w+s.l)*100,pnl:s.pnl}));
+  assetArr.sort((a,b)=>{const av=a[sortCol],bv=b[sortCol];return sortAsc?av>bv?1:-1:av<bv?1:-1;});
+  document.getElementById('assetCount').textContent=`${assetArr.length} assets`;
+  document.getElementById('assetBody').innerHTML=assetArr.map(a=>{
+    const wrColor=a.wr>=60?'positive':a.wr>=54?'':'negative';
+    const pnlColor=a.pnl>=0?'positive':'negative';
+    const wrBarW=Math.min(a.wr,100);
+    const wrBarColor=a.wr>=60?'var(--win)':a.wr>=54?'var(--amber)':'var(--loss)';
+    return`<tr>
+      <td class="asset-name">${a.asset}</td>
+      <td>${a.trades}</td>
+      <td>${a.wins}</td>
+      <td>${a.losses}</td>
+      <td class="${wrColor}"><span class="wr-bar" style="width:${wrBarW}px;background:${wrBarColor}"></span>${a.wr.toFixed(0)}%</td>
+      <td class="${pnlColor}">${a.pnl>=0?'+':''}${a.pnl.toFixed(1)}</td>
+    </tr>`;
+  }).join('');
+
+  // Recent trades
+  const recent=trades.slice(-30).reverse();
+  document.getElementById('tradeCount').textContent=`${trades.length} total`;
+  document.getElementById('tradesBody').innerHTML=recent.map(t=>{
+    const cls=t.win?'win-row':'loss-row';
+    const time=t.time.split(' ')[1];
+    return`<tr class="trade-row ${cls}">
+      <td>${time}</td>
+      <td class="asset-name">${t.asset}</td>
+      <td><span class="badge badge-${t.direction}">${t.direction.toUpperCase()}</span></td>
+      <td>${t.confidence||'-'}</td>
+      <td><span class="badge ${t.win?'badge-win':'badge-loss'}">${t.win?'WIN':'LOSS'}</span></td>
+      <td class="${t.win?'positive':'negative'}">${t.win?'+':''}${t.profit.toFixed(1)}</td>
+    </tr>`;
+  }).join('');
+
+  // Sort handlers
+  document.querySelectorAll('#assetTable th[data-sort]').forEach(th=>{
+    th.onclick=()=>{
+      const col=th.dataset.sort;
+      if(sortCol===col)sortAsc=!sortAsc;else{sortCol=col;sortAsc=false;}
+      document.querySelectorAll('#assetTable th .sort-arrow').forEach(s=>s.remove());
+      th.innerHTML=th.textContent.replace(/[▼▲]/g,'').trim()+(sortAsc?' <span class="sort-arrow">▲</span>':' <span class="sort-arrow">▼</span>');
+      render(trades);
+    };
+  });
+}
+
+loadData();
+setInterval(loadData,30000);
+</script>
+</body>
+</html>
