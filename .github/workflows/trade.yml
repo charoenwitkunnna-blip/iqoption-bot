@@ -27,7 +27,7 @@ jobs:
         IQ_PASSWORD: ${{ secrets.IQ_PASSWORD }}
       run: |
         cd experiments
-        MAX_CYCLES=3 python3 -u rho_real.py
+        MAX_CYCLES=3 python3 -u rho_real_gh.py
       timeout-minutes: 3
 
     - name: Save results

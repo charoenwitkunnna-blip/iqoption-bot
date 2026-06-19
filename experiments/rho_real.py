@@ -4,7 +4,7 @@ import sys, os, time, json, importlib
 
 AMOUNT = 30
 STOP_LOSS = -90
-BASE_DIR = "os.path.dirname(os.path.abspath(__file__))"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 RESULTS = os.path.join(BASE_DIR, "results")
 os.makedirs(RESULTS, exist_ok=True)
 
