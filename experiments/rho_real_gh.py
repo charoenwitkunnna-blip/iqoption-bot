@@ -10,7 +10,7 @@ os.makedirs(RESULTS, exist_ok=True)
 sys.path.insert(0, BASE_DIR)
 sys.path.insert(0, os.path.join(BASE_DIR, '..'))
 
-IQ_OPTION_EMAIL = os.environ.get("IQ_EMAIL", "agolfhitler3000@gmail.com")
+IQ_OPTION_EMAIL = os.environ["IQ_EMAIL"]
 IQ_OPTION_PASSWORD = os.environ.get("IQ_PASSWORD", "")
 
 from iqoptionapi.stable_api import IQ_Option
@@ -45,7 +45,6 @@ def save_trades(trades):
 
 trades = load_trades()
 log("Starting...")
-IQ_OPTION_PASSWORD = os.environ.get("IQ_PASSWORD", "")
 ok, r = api.connect()
 log(f"Connect: {ok}")
 if not ok:
