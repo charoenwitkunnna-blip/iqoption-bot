@@ -79,7 +79,13 @@ def refresh_paying(api, open_assets):
     log(f"Cache: {len(paying)} paying assets")
     return paying
 
+MAX_CYCLES = int(os.environ.get("MAX_CYCLES", "0"))
+cycle_count = 0
 while True:
+    cycle_count += 1
+    if MAX_CYCLES > 0 and cycle_count > MAX_CYCLES:
+        log(f"MAX_CYCLES reached ({MAX_CYCLES})")
+        break
     api = None
     try:
         api = IQ_Option(IQ_OPTION_EMAIL, IQ_OPTION_PASSWORD)
