@@ -57,28 +57,33 @@ time.sleep(2)
 bal = api.get_balance()
 log(f"Balance: {bal}")
 
-class CandleTimeout(Exception): pass
-
-def get_candles_timeout(api, asset, period, count, timeout=8):
-    """get_candles with signal.alarm timeout."""
-    import signal
-    def handler(signum, frame):
-        raise CandleTimeout()
-    old = signal.signal(signal.SIGALRM, handler)
-    signal.alarm(timeout)
+def get_candles_timeout(asset, period=60, count=50, timeout=8):
+    """get_candles via subprocess — kills on hang."""
+    import subprocess, json as _json
+    code = f"""
+import sys, time, json; sys.path.insert(0,'.'); sys.path.insert(0,'..')
+import os
+from iqoptionapi.stable_api import IQ_Option
+api = IQ_Option(os.environ.get('IQ_EMAIL',''), os.environ.get('IQ_PASSWORD',''))
+ok, r = api.connect()
+if ok:
+    api.change_balance('PRACTICE')
+    time.sleep(1)
+    c = api.get_candles('{asset}', {period}, {count}, time.time())
+    if c: print(json.dumps([[x.get('close',0),x.get('max',0),x.get('min',0),x.get('open',0)] for x in c]))
+"""
     try:
-        result = api.get_candles(asset, period, count, time.time())
-        signal.alarm(0)
-        signal.signal(signal.SIGALRM, old)
-        return result
-    except (CandleTimeout, Exception):
-        signal.alarm(0)
-        signal.signal(signal.SIGALRM, old)
-        return None
+        r = subprocess.run(['python3', '-c', code], capture_output=True, text=True, timeout=timeout, cwd='.')
+        if r.returncode == 0 and r.stdout.strip():
+            data = _json.loads(r.stdout.strip())
+            return [{'close': d[0], 'max': d[1], 'min': d[2], 'open': d[3]} for d in data]
+    except:
+        pass
+    return None
 
 top = sorted(PAYING.keys(), key=PAYING.get, reverse=True)
 for asset in top:
-    candles = get_candles_timeout(api, asset, 60, 50, timeout=8)
+    candles = get_candles_timeout(asset, timeout=10)
     if not candles or len(candles) < 30:
         continue
     try:
