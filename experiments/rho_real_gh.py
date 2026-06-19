@@ -57,20 +57,24 @@ time.sleep(2)
 bal = api.get_balance()
 log(f"Balance: {bal}")
 
-def get_candles_timeout(api, asset, period, count, timeout=5):
-    """get_candles with timeout."""
-    import threading
-    result = [None]
-    def worker():
-        try:
-            result[0] = api.get_candles(asset, period, count, time.time())
-        except:
-            pass
-    t = threading.Thread(target=worker)
-    t.daemon = True
-    t.start()
-    t.join(timeout)
-    return result[0]
+class CandleTimeout(Exception): pass
+
+def get_candles_timeout(api, asset, period, count, timeout=8):
+    """get_candles with signal.alarm timeout."""
+    import signal
+    def handler(signum, frame):
+        raise CandleTimeout()
+    old = signal.signal(signal.SIGALRM, handler)
+    signal.alarm(timeout)
+    try:
+        result = api.get_candles(asset, period, count, time.time())
+        signal.alarm(0)
+        signal.signal(signal.SIGALRM, old)
+        return result
+    except (CandleTimeout, Exception):
+        signal.alarm(0)
+        signal.signal(signal.SIGALRM, old)
+        return None
 
 top = sorted(PAYING.keys(), key=PAYING.get, reverse=True)
 for asset in top:
