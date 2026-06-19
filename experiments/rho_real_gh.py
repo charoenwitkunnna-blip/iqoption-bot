@@ -67,6 +67,7 @@ if ok:
 """
     try:
         r = subprocess.run(['python3', '-c', code], capture_output=True, text=True, timeout=timeout, cwd='.')
+        if r.stderr: log(f"  SUBPROCESS STDERR: {r.stderr[:200]}")
         if r.returncode == 0 and r.stdout.strip():
             data = _json.loads(r.stdout.strip())
             return [{'close': d[0], 'max': d[1], 'min': d[2], 'open': d[3]} for d in data]
