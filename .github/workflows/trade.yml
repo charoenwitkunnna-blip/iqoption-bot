@@ -8,7 +8,7 @@ on:
 jobs:
   trade:
     runs-on: ubuntu-latest
-    timeout-minutes: 4
+    timeout-minutes: 8
 
     steps:
     - uses: actions/checkout@v4
@@ -28,7 +28,7 @@ jobs:
       run: |
         cd experiments
         MAX_CYCLES=3 python3 -u rho_real_gh.py
-      timeout-minutes: 3
+      timeout-minutes: 7
 
     - name: Save results
       if: always()
